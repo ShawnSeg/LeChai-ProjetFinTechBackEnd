@@ -1,23 +1,115 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using QueryBuilderTools;
+using SQLExecutorTools;
 
 namespace LeChai_ProjetFinTechBackEnd.Controllers;
 
 [ApiController]
-[Route("get")]
+[Route("test")]
 public class Controller : ControllerBase
 {
-
+    private static string connectionString = null;
+    private SelectQuery query;
+    private SelectQuery queryMain;
+    private SQLExecutor executor;
+    private CancellationToken cancellationToken = default;
     private readonly ILogger<Controller> _logger;
+    private static void setConnectionString()
+    {
+        if (connectionString is not null)
+            return;
+        
+        IConfiguration configuration = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory())
+        .AddJsonFile("appsettings.json")
+        .Build();
+
+        connectionString = configuration.GetConnectionString("DefaultConnection") ?? "error";
+    }
 
     public Controller(ILogger<Controller> logger)
     {
+        setConnectionString();
         _logger = logger;
+        Table genres = new Table("T_Genres",
+            new Column("no", DataType.INT, true),
+            new Column("nom", DataType.VARCHAR)
+        );
+        Table races = new Table("T_Races",
+            new Column("no", DataType.INT, true),
+            new Column("nom", DataType.VARCHAR),
+            new Column("commentaire", DataType.VARCHAR)
+        );
+        Table especes = new Table("T_Especes",
+            new Column("no", DataType.INT, true),
+            new Column("nom", DataType.VARCHAR),
+            new Column("no_genre", genres)
+        );
+        Table animaux = new Table("T_Animaux",
+            new Column("no", DataType.INT, true),
+            new Column("sexe", DataType.VARCHAR),
+            new Column("date_naissance", DataType.DATETIME),
+            new Column("nom", DataType.VARCHAR),
+            new Column("commentaire", DataType.VARCHAR),
+            new Column("no_espece", especes),
+            new Column("no_race", races)
+        );
+        animaux
+            .addColumn(new Column("no_pere", animaux))
+            .addColumn(new Column("no_mere", animaux))
+            ;
+        Variable var = new Variable(DataType.VARCHAR, '%');
+        Variable nom = new Variable("nom", DataType.VARCHAR, true);
+        Variable id_espece = new Variable("id_espece", DataType.INT);
+        query = new QueryBuilder(DataType.table)
+            .select(animaux["no"].noAlias, animaux["nom"].noAlias, Functions.getDateDiff(animaux["date_naissance"], "MONTH").addAlias("age"))
+            .from(animaux)
+            .where(
+                //new Condition(animaux["nom"], new ParsableValue(DataType.VARCHAR, var.addOperator(OperatorsArithm.ADDITION), nom.addOperator(OperatorsArithm.ADDITION), var.addOperator(OperatorsArithm.ADDITION)), ConditionalOperators.LIKE),
+                new Condition(animaux["no_espe" +
+                "ce"], id_espece, ConditionalOperators.EQUALS))
+            .order(animaux["no"].isAsc)
+            .BuildSelect(false)
+            ;
+
+        queryMain = new QueryBuilder(DataType.table)
+            .select(especes["no"].addAlias("no_espece"), especes["nom"].addAlias("nom_espece"))
+            .from(especes)
+            .BuildSelect(false)
+            ;
+        executor = new SQLExecutor(connectionString);
     }
 
-    [HttpGet(Name = "GetTest")]
-    public IActionResult Get()
+    [HttpGet("GetArray")]
+    public async Task<IActionResult> Get()
     {
-        return Ok(JsonSerializer.Deserialize<Dictionary<string, object>>("{\"noms\":[\"Adam\", \"AmelieF\", \"ShawnS\", \"AntoinePLOUFFE\"],\"no_espece\":1,\"nom_espece\":\"Chien\",\"animaux\":[{\"no\":1,\"nom\":{},\"age\":42},{\"no\":2,\"nom\":{},\"age\":40},{\"no\":3,\"nom\":\"Camomille\",\"age\":41},{\"no\":4,\"nom\":\"Blue\",\"age\":39},{\"no\":5,\"nom\":{},\"age\":40},{\"no\":6,\"nom\":\"Norbert\",\"age\":41},{\"no\":20,\"nom\":\"C\u00E9leste\",\"age\":42},{\"no\":21,\"nom\":\"Silhouette\",\"age\":42},{\"no\":36,\"nom\":\"Raven\",\"age\":40},{\"no\":37,\"nom\":\"Brownie\",\"age\":42},{\"no\":38,\"nom\":\"Blacky\",\"age\":39},{\"no\":39,\"nom\":\"Slate\",\"age\":40},{\"no\":53,\"nom\":\"Rex\",\"age\":42},{\"no\":54,\"nom\":\"Coffee\",\"age\":40},{\"no\":55,\"nom\":\"Cocoa\",\"age\":41},{\"no\":56,\"nom\":\"Cola\",\"age\":41},{\"no\":57,\"nom\":\"Peluche\",\"age\":40},{\"no\":58,\"nom\":{},\"age\":41},{\"no\":59,\"nom\":\"Yin-Yang\",\"age\":39},{\"no\":60,\"nom\":\"Lichette\",\"age\":42},{\"no\":61,\"nom\":\"Dice\",\"age\":41},{\"no\":62,\"nom\":{},\"age\":42}]}"));
+        VariableList vars = new VariableList()
+                .Add("nom", "a", DataType.VARCHAR)
+                ;
+        return Ok(await executor.getJSONArray(query, new List<Field>() {
+                    new Field("no"),
+                    new Field("nom"),
+                    new Field("age")
+            }, vars, 2, 10));
+    }
+
+    [HttpGet("GetObject")]
+    public async Task<IActionResult> GetObj()
+    {
+        VariableList vars = new VariableList()
+                .Add("nom", "a", DataType.VARCHAR)
+                ;
+        Dictionary<string, string> binder = new Dictionary<string, string>();
+        binder.Add("id_espece", "no_espece");
+        return Ok(await executor.getJSONObject(queryMain, new List<Field>() { 
+                new Field("no_espece"),
+                new Field("nom_espece"),
+                new FieldDetailed("animaux", query, null, binder, new List<Field>() {
+                    new Field("no"),
+                    new Field("nom"),
+                    new Field("age")
+                })
+            }, null, cancellationToken));
     }
 }
