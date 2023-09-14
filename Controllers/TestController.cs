@@ -78,6 +78,7 @@ public class Controller : ControllerBase
             .from(especes)
             .BuildSelect(false)
             ;
+            
         executor = new SQLExecutor(connectionString);
     }
 
@@ -87,11 +88,11 @@ public class Controller : ControllerBase
         VariableList vars = new VariableList()
                 .Add("nom", "a", DataType.VARCHAR)
                 ;
-        return Ok(await executor.getJSONArray(query, new List<Field>() {
+        return Ok(await executor.getJSONArray("SELECT no, nom, 1 AS age FROM T_Animaux", new List<Field>() {
                     new Field("no"),
                     new Field("nom"),
                     new Field("age")
-            }, vars, 2, 10));
+            }, vars));
     }
 
     [HttpGet("GetObject")]
