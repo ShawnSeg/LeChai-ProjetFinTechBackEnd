@@ -1,16 +1,36 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using QueryBuilderTools;
+using SQLExecutorTools;
 
 namespace LeChai_ProjetFinTechBackEnd.Controllers;
 
 [ApiController]
-[Route("get")]
+[Route("test")]
 public class Controller : ControllerBase
 {
-
+    private static string connectionString = null;
+    private SelectQuery query;
+    private SelectQuery queryMain;
+    private SQLExecutor executor;
+    private CancellationToken cancellationToken = default;
     private readonly ILogger<Controller> _logger;
+    private static void setConnectionString()
+    {
+        if (connectionString is not null)
+            return;
+        
+        IConfiguration configuration = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory())
+        .AddJsonFile("appsettings.json")
+        .Build();
+
+        connectionString = configuration.GetConnectionString("DefaultConnection") ?? "error";
+    }
 
     public Controller(ILogger<Controller> logger)
     {
+        setConnectionString();
         _logger = logger;
         Table etats_commandes = new Table("etats_commandes",
             new Column("id", DataType.INT, true),
@@ -31,9 +51,9 @@ public class Controller : ControllerBase
             .order(etats_commandes["id"].isAsc)
             .BuildSelect(false)
             ;
-        /*
-        queryMain = new QueryBuilder(DataType.table)
-            .select(especes["no"].addAlias("no_espece"), especes["nom"].addAlias("nom_espece"))
+        
+        //queryMain = new QueryBuilder(DataType.table)
+        /*    .select(especes["no"].addAlias("no_espece"), especes["nom"].addAlias("nom_espece"))
             .from(especes)
             .BuildSelect(false)
             ;
@@ -45,7 +65,7 @@ public class Controller : ControllerBase
     public async Task<IActionResult> Get()
     {
         VariableList vars = new VariableList()
-                .Add("nom", "q", DataType.VARCHAR)
+                .Add("nom", "v", DataType.VARCHAR)
                 ;
         return Ok(await executor.getJSONArray(query, new List<Field>() {
                     new Field("id"),
