@@ -88,10 +88,10 @@ public class Controller : ControllerBase
         VariableList vars = new VariableList()
                 .Add("nom", "a", DataType.VARCHAR)
                 ;
-        return Ok(await executor.getJSONArray("SELECT no, nom, 1 AS age FROM T_Animaux", new List<Field>() {
-                    new Field("no"),
+        return Ok(await executor.getJSONArray("SELECT id, nom, descriptions FROM etats_commandes", new List<Field>() {
+                    new Field("id"),
                     new Field("nom"),
-                    new Field("age")
+                    new Field("descriptions")
             }, vars));
     }
 
